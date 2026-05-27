@@ -31,6 +31,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setUser(session?.user ?? null);
+      // Refresh data: owner-only rows may have become (in)visible.
+      window.dispatchEvent(new Event("lg:topics-changed"));
+      window.dispatchEvent(new Event("lg:posts-changed"));
     });
     return () => sub.subscription.unsubscribe();
   }, []);
