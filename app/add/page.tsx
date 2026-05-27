@@ -175,6 +175,19 @@ function AddForm() {
           placeholder="Write as much as you need — the card will scroll."
           className={field}
         />
+        <div className="text-[11px] text-muted mt-1 leading-relaxed">
+          Markdown supported: <code className="text-accent">**bold**</code>{" "}
+          <code className="text-accent">*italic*</code>{" "}
+          <code className="text-accent">`code`</code>{" "}
+          <code className="text-accent">- bullet</code>{" "}
+          <code className="text-accent"># heading</code>{" "}
+          <code className="text-accent">&gt; quote</code>
+          . For colors:{" "}
+          <code className="text-accent">
+            &lt;span style="color:#ec4899"&gt;text&lt;/span&gt;
+          </code>
+          .
+        </div>
       </div>
 
       <div>

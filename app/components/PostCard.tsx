@@ -12,6 +12,7 @@ import {
 import type { LearningPost } from "../data/posts";
 import { STORAGE_KEYS } from "../lib/storage";
 import { useAuth } from "../lib/auth";
+import { Markdown } from "./Markdown";
 
 function readSaved(): string[] {
   try {
@@ -93,18 +94,18 @@ export function PostCard({ post }: { post: LearningPost }) {
 
         {/* Scrollable body */}
         <div className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 space-y-4">
-          <p className="text-[15px] leading-relaxed whitespace-pre-wrap">
-            {post.definition}
-          </p>
+          <div className="text-[15px] leading-relaxed space-y-2">
+            <Markdown>{post.definition}</Markdown>
+          </div>
 
           {post.example && (
             <div className="rounded-xl bg-surface2 border border-border p-3">
               <div className="text-[11px] uppercase tracking-wider text-muted mb-1">
                 Example
               </div>
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                {post.example}
-              </p>
+              <div className="text-sm leading-relaxed space-y-2">
+                <Markdown>{post.example}</Markdown>
+              </div>
             </div>
           )}
 
@@ -136,7 +137,9 @@ export function PostCard({ post }: { post: LearningPost }) {
                 <div className="text-[11px] uppercase tracking-wider gradient-text font-semibold mb-1">
                   Remember
                 </div>
-                <p className="text-sm leading-relaxed">{post.remember}</p>
+                <div className="text-sm leading-relaxed">
+                  <Markdown>{post.remember}</Markdown>
+                </div>
               </div>
             </div>
           </div>
