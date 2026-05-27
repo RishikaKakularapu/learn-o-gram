@@ -1,12 +1,13 @@
 "use client";
 
-import { useRef } from "react";
-import { ImagePlus, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { ImagePlus, X, Loader2 } from "lucide-react";
+import { supabase } from "../lib/supabase";
 
-const MAX_BYTES = 700_000; // ~700KB raw; data URL ~30% larger. Keeps localStorage healthy.
 const MAX_DIM = 1280;
+const BUCKET = "card-images";
 
-function fileToCompressedDataUrl(file: File): Promise<string> {
+function fileToCompressedBlob(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error);
@@ -23,7 +24,11 @@ function fileToCompressedDataUrl(file: File): Promise<string> {
         const ctx = canvas.getContext("2d");
         if (!ctx) return reject(new Error("Canvas not available"));
         ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", 0.82));
+        canvas.toBlob(
+          (blob) => (blob ? resolve(blob) : reject(new Error("toBlob failed"))),
+          "image/jpeg",
+          0.82
+        );
       };
       img.src = reader.result as string;
     };
@@ -43,23 +48,32 @@ export function ImagePicker({
   helper?: string;
 }) {
   const ref = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
   async function handleFile(f: File | null) {
     if (!f) return;
-    if (f.size > 8_000_000) {
-      alert("Image is larger than 8MB. Pick something smaller.");
+    if (f.size > 10_000_000) {
+      alert("Image is larger than 10MB. Pick something smaller.");
       return;
     }
+    setUploading(true);
     try {
-      const dataUrl = await fileToCompressedDataUrl(f);
-      if (dataUrl.length > MAX_BYTES * 1.4) {
-        // still huge after compression
-        alert("Image is too large even after compression. Try a smaller one.");
+      const blob = await fileToCompressedBlob(f);
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+      const { error } = await supabase.storage
+        .from(BUCKET)
+        .upload(path, blob, { contentType: "image/jpeg", upsert: false });
+      if (error) {
+        alert(`Upload failed: ${error.message}`);
         return;
       }
-      onChange(dataUrl);
-    } catch {
-      alert("Could not load that image.");
+      const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+      onChange(data.publicUrl);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      alert(`Could not load that image: ${msg}`);
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -82,10 +96,20 @@ export function ImagePicker({
         <button
           type="button"
           onClick={() => ref.current?.click()}
-          className="w-full h-24 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted hover:text-text hover:border-accent transition-colors"
+          disabled={uploading}
+          className="w-full h-24 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted hover:text-text hover:border-accent transition-colors disabled:opacity-60"
         >
-          <ImagePlus size={20} />
-          <span className="text-xs">Choose image</span>
+          {uploading ? (
+            <>
+              <Loader2 size={20} className="animate-spin" />
+              <span className="text-xs">Uploading…</span>
+            </>
+          ) : (
+            <>
+              <ImagePlus size={20} />
+              <span className="text-xs">Choose image</span>
+            </>
+          )}
         </button>
       )}
       {helper && <div className="text-[11px] text-muted mt-1">{helper}</div>}

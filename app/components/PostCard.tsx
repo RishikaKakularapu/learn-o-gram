@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { LearningPost } from "../data/posts";
 import { STORAGE_KEYS } from "../lib/storage";
+import { useAuth } from "../lib/auth";
 
 function readSaved(): string[] {
   try {
@@ -27,6 +28,7 @@ function writeSaved(ids: string[]) {
 }
 
 export function PostCard({ post }: { post: LearningPost }) {
+  const { isOwner } = useAuth();
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -67,13 +69,15 @@ export function PostCard({ post }: { post: LearningPost }) {
               {post.tags.slice(0, 2).map((t) => `#${t}`).join(" ")}
             </div>
           </div>
-          <Link
-            href={`/add?id=${post.id}`}
-            aria-label="Edit"
-            className="p-1.5 rounded-full hover:bg-surface2 text-muted"
-          >
-            <Pencil size={16} />
-          </Link>
+          {isOwner && (
+            <Link
+              href={`/add?id=${post.id}`}
+              aria-label="Edit"
+              className="p-1.5 rounded-full hover:bg-surface2 text-muted"
+            >
+              <Pencil size={16} />
+            </Link>
+          )}
         </div>
 
         {/* Foreground image (pinned, optional) */}

@@ -6,10 +6,12 @@ import { PostCard } from "../../components/PostCard";
 import { BottomNav } from "../../components/BottomNav";
 import { useAllPosts } from "../../lib/posts";
 import { useAllTopics } from "../../lib/topics";
+import { useAuth } from "../../lib/auth";
 
 export default function FeedClient({ slug }: { slug: string }) {
   const { topics, ready } = useAllTopics();
   const all = useAllPosts();
+  const { isOwner } = useAuth();
   const topic = topics.find((t) => t.slug === slug);
   const posts = all.filter((p) => p.topic === slug);
 
@@ -27,7 +29,7 @@ export default function FeedClient({ slug }: { slug: string }) {
           </div>
         </header>
         <div className="max-w-md mx-auto px-4 py-20 text-center text-muted">
-          This topic doesn’t exist anymore.{" "}
+          This topic doesn’t exist.{" "}
           <Link href="/" className="text-accent">Back to home</Link>.
         </div>
         <BottomNav />
@@ -51,29 +53,38 @@ export default function FeedClient({ slug }: { slug: string }) {
               </div>
             </div>
           </div>
-          <Link
-            href={`/add-topic?slug=${topic.slug}`}
-            aria-label="Edit topic"
-            className="p-1.5 rounded-full text-muted hover:text-text"
-          >
-            <Pencil size={16} />
-          </Link>
-          <Link
-            href={`/add?topic=${topic.slug}`}
-            className="text-xs px-3 py-1.5 rounded-full gradient-accent font-semibold"
-          >
-            + Card
-          </Link>
+          {isOwner && (
+            <>
+              <Link
+                href={`/add-topic?slug=${topic.slug}`}
+                aria-label="Edit topic"
+                className="p-1.5 rounded-full text-muted hover:text-text"
+              >
+                <Pencil size={16} />
+              </Link>
+              <Link
+                href={`/add?topic=${topic.slug}`}
+                className="text-xs px-3 py-1.5 rounded-full gradient-accent font-semibold"
+              >
+                + Card
+              </Link>
+            </>
+          )}
         </div>
       </header>
 
       {posts.length === 0 ? (
         <div className="max-w-md mx-auto px-4 py-20 text-center text-muted">
-          No cards in this topic yet.{" "}
-          <Link href={`/add?topic=${topic.slug}`} className="text-accent">
-            Add the first one
-          </Link>
-          .
+          No cards in this topic yet.
+          {isOwner && (
+            <>
+              {" "}
+              <Link href={`/add?topic=${topic.slug}`} className="text-accent">
+                Add the first one
+              </Link>
+              .
+            </>
+          )}
         </div>
       ) : (
         <section className="feed h-[calc(100vh-56px-64px)] overflow-y-auto no-scrollbar pb-16">

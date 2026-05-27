@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, Trash2 } from "lucide-react";
 import { BottomNav } from "../components/BottomNav";
 import {
-  addCustomTopic,
+  addTopic,
   deleteTopic,
   getTopicBySlug,
   gradientPresets,
@@ -14,6 +14,7 @@ import {
   updateTopic,
   useAllTopics,
 } from "../lib/topics";
+import { useAuth } from "../lib/auth";
 
 function TopicForm() {
   const router = useRouter();
@@ -21,33 +22,38 @@ function TopicForm() {
   const editSlug = params.get("slug");
   const isEdit = Boolean(editSlug);
   const { topics } = useAllTopics();
+  const { isOwner, loading: authLoading } = useAuth();
 
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("✨");
   const [blurb, setBlurb] = useState("");
   const [gradient, setGradient] = useState(gradientPresets[0].value);
   const [loaded, setLoaded] = useState(!isEdit);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!isEdit || !editSlug || loaded) return;
-    const t = getTopicBySlug(editSlug);
-    if (t) {
-      setName(t.name);
-      setIcon(t.icon);
-      setBlurb(t.blurb);
-      setGradient(t.gradient);
-    }
-    setLoaded(true);
+    getTopicBySlug(editSlug).then((t) => {
+      if (t) {
+        setName(t.name);
+        setIcon(t.icon);
+        setBlurb(t.blurb);
+        setGradient(t.gradient);
+      }
+      setLoaded(true);
+    });
   }, [isEdit, editSlug, loaded]);
 
   const newSlug = isEdit ? (editSlug as string) : slugify(name);
   const taken =
     !isEdit && topics.some((t) => t.slug === newSlug) && newSlug.length > 0;
-  const canSubmit = name.trim().length > 0 && newSlug.length > 0 && !taken;
+  const canSubmit =
+    !busy && name.trim().length > 0 && newSlug.length > 0 && !taken;
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
+    setBusy(true);
     const topic = {
       slug: newSlug,
       name: name.trim(),
@@ -55,27 +61,45 @@ function TopicForm() {
       icon: icon || "✨",
       gradient,
     };
-    if (isEdit) updateTopic(topic);
-    else addCustomTopic(topic);
-    router.push(`/feed/${newSlug}`);
+    try {
+      if (isEdit) await updateTopic(topic);
+      else await addTopic(topic);
+      router.push(`/feed/${newSlug}`);
+    } finally {
+      setBusy(false);
+    }
   }
 
-  function onDelete() {
+  async function onDelete() {
     if (!editSlug) return;
     if (
       !confirm(
-        `Delete this topic? Cards inside it will become unreachable. (You can recreate the topic with the same name to restore them.)`
+        `Delete this topic? Its cards will also be deleted. This can't be undone.`
       )
     )
       return;
-    deleteTopic(editSlug);
-    router.push("/");
+    setBusy(true);
+    try {
+      await deleteTopic(editSlug);
+      router.push("/");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const field =
     "w-full bg-surface2 border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-accent placeholder:text-muted";
 
-  if (!loaded) return null;
+  if (authLoading || !loaded) return null;
+
+  if (!isOwner) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-20 text-center text-muted">
+        You need to sign in to add or edit topics.{" "}
+        <Link href="/signin" className="text-accent">Sign in</Link>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={submit} className="max-w-md mx-auto px-4 py-4 space-y-4">
@@ -156,14 +180,15 @@ function TopicForm() {
         disabled={!canSubmit}
         className="w-full py-3 rounded-xl gradient-accent font-semibold disabled:opacity-40"
       >
-        {isEdit ? "Update topic" : "Create topic"}
+        {busy ? "Saving…" : isEdit ? "Update topic" : "Create topic"}
       </button>
 
       {isEdit && (
         <button
           type="button"
           onClick={onDelete}
-          className="w-full py-3 rounded-xl bg-surface2 border border-border text-pink-400 font-semibold flex items-center justify-center gap-2"
+          disabled={busy}
+          className="w-full py-3 rounded-xl bg-surface2 border border-border text-pink-400 font-semibold flex items-center justify-center gap-2 disabled:opacity-40"
         >
           <Trash2 size={16} /> Delete topic
         </button>

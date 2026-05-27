@@ -7,18 +7,15 @@ import { ChevronLeft, Plus, Trash2 } from "lucide-react";
 import { BottomNav } from "../components/BottomNav";
 import { ImagePicker } from "../components/ImagePicker";
 import { useAllTopics } from "../lib/topics";
-import {
-  addCustomPost,
-  deletePost,
-  getPostById,
-  updatePost,
-} from "../lib/posts";
+import { addPost, deletePost, getPostById, updatePost } from "../lib/posts";
+import { useAuth } from "../lib/auth";
 import type { LearningPost } from "../data/posts";
 
 function AddForm() {
   const router = useRouter();
   const search = useSearchParams();
   const { topics, ready } = useAllTopics();
+  const { isOwner, loading: authLoading } = useAuth();
 
   const editId = search.get("id");
   const preset = search.get("topic");
@@ -34,26 +31,26 @@ function AddForm() {
   const [backgroundImage, setBackgroundImage] = useState<string | undefined>();
   const [foregroundImage, setForegroundImage] = useState<string | undefined>();
   const [loaded, setLoaded] = useState(!isEdit);
+  const [busy, setBusy] = useState(false);
 
-  // Load existing post for edit
   useEffect(() => {
     if (!isEdit || !editId || loaded) return;
-    const existing = getPostById(editId);
-    if (existing) {
-      setTopic(existing.topic);
-      setTitle(existing.title);
-      setDefinition(existing.definition);
-      setExample(existing.example ?? "");
-      setRemember(existing.remember ?? "");
-      setTags(existing.tags.join(", "));
-      setIcon(existing.icon ?? "📝");
-      setBackgroundImage(existing.backgroundImage);
-      setForegroundImage(existing.foregroundImage);
-    }
-    setLoaded(true);
+    getPostById(editId).then((existing) => {
+      if (existing) {
+        setTopic(existing.topic);
+        setTitle(existing.title);
+        setDefinition(existing.definition);
+        setExample(existing.example ?? "");
+        setRemember(existing.remember ?? "");
+        setTags(existing.tags.join(", "));
+        setIcon(existing.icon ?? "📝");
+        setBackgroundImage(existing.backgroundImage);
+        setForegroundImage(existing.foregroundImage);
+      }
+      setLoaded(true);
+    });
   }, [isEdit, editId, loaded]);
 
-  // Default topic for new card
   useEffect(() => {
     if (isEdit || !ready || topic) return;
     const initial =
@@ -63,9 +60,10 @@ function AddForm() {
     setTopic(initial);
   }, [isEdit, ready, preset, topics, topic]);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !definition.trim() || !topic) return;
+    setBusy(true);
     const post: LearningPost = {
       id: editId ?? `c_${Date.now()}`,
       topic,
@@ -78,22 +76,40 @@ function AddForm() {
       backgroundImage,
       foregroundImage,
     };
-    if (isEdit) updatePost(post);
-    else addCustomPost(post);
-    router.push(`/feed/${topic}`);
+    try {
+      if (isEdit) await updatePost(post);
+      else await addPost(post);
+      router.push(`/feed/${topic}`);
+    } finally {
+      setBusy(false);
+    }
   }
 
-  function onDelete() {
+  async function onDelete() {
     if (!editId) return;
     if (!confirm("Delete this card? This can't be undone.")) return;
-    deletePost(editId);
-    router.push(`/feed/${topic}`);
+    setBusy(true);
+    try {
+      await deletePost(editId);
+      router.push(`/feed/${topic}`);
+    } finally {
+      setBusy(false);
+    }
   }
 
   const field =
     "w-full bg-surface2 border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-accent placeholder:text-muted";
 
-  if (!ready || !loaded) return null;
+  if (authLoading || !ready || !loaded) return null;
+
+  if (!isOwner) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-20 text-center text-muted">
+        You need to sign in to add or edit cards.{" "}
+        <Link href="/signin" className="text-accent">Sign in</Link>
+      </div>
+    );
+  }
 
   if (topics.length === 0) {
     return (
@@ -198,17 +214,18 @@ function AddForm() {
 
       <button
         type="submit"
-        disabled={!title.trim() || !definition.trim() || !topic}
+        disabled={busy || !title.trim() || !definition.trim() || !topic}
         className="w-full py-3 rounded-xl gradient-accent font-semibold disabled:opacity-40"
       >
-        {isEdit ? "Update card" : "Save card"}
+        {busy ? "Saving…" : isEdit ? "Update card" : "Save card"}
       </button>
 
       {isEdit && (
         <button
           type="button"
           onClick={onDelete}
-          className="w-full py-3 rounded-xl bg-surface2 border border-border text-pink-400 font-semibold flex items-center justify-center gap-2"
+          disabled={busy}
+          className="w-full py-3 rounded-xl bg-surface2 border border-border text-pink-400 font-semibold flex items-center justify-center gap-2 disabled:opacity-40"
         >
           <Trash2 size={16} /> Delete card
         </button>

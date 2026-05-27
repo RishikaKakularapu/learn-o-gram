@@ -1,11 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { topics as seedTopics, type Topic } from "../data/topics";
+import type { Topic } from "../data/topics";
+import { supabase } from "./supabase";
 
-const CUSTOM_KEY = "lg.customTopics";
-const OVERRIDES_KEY = "lg.topicOverrides";
-const DELETED_KEY = "lg.deletedTopics";
 const EVT = "lg:topics-changed";
 
 export const gradientPresets: { label: string; value: string }[] = [
@@ -19,87 +17,94 @@ export const gradientPresets: { label: string; value: string }[] = [
   { label: "Slate → Zinc", value: "from-slate-500 to-zinc-700" },
 ];
 
-function readJSON<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-function writeJSON(key: string, value: unknown) {
-  localStorage.setItem(key, JSON.stringify(value));
-  window.dispatchEvent(new Event(EVT));
+type Row = {
+  slug: string;
+  name: string;
+  blurb: string | null;
+  icon: string | null;
+  gradient: string | null;
+  position: number | null;
+};
+
+function rowToTopic(r: Row): Topic {
+  return {
+    slug: r.slug,
+    name: r.name,
+    blurb: r.blurb ?? "",
+    icon: r.icon ?? "",
+    gradient: r.gradient ?? "from-violet-500 to-fuchsia-500",
+  };
 }
 
-function compose(): Topic[] {
-  const custom = readJSON<Topic[]>(CUSTOM_KEY, []);
-  const overrides = readJSON<Record<string, Topic>>(OVERRIDES_KEY, {});
-  const deleted = new Set(readJSON<string[]>(DELETED_KEY, []));
-  const visibleSeed = seedTopics
-    .filter((t) => !deleted.has(t.slug))
-    .map((t) => overrides[t.slug] ?? t);
-  return [...visibleSeed, ...custom];
+function topicToRow(t: Topic) {
+  return {
+    slug: t.slug,
+    name: t.name,
+    blurb: t.blurb,
+    icon: t.icon,
+    gradient: t.gradient,
+    updated_at: new Date().toISOString(),
+  };
 }
 
 export function useAllTopics(): { topics: Topic[]; ready: boolean } {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [ready, setReady] = useState(false);
-  const reload = useCallback(() => setTopics(compose()), []);
+  const reload = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("topics")
+      .select("*")
+      .order("position", { ascending: true })
+      .order("name", { ascending: true });
+    if (!error) setTopics((data as Row[] | null ?? []).map(rowToTopic));
+    setReady(true);
+  }, []);
   useEffect(() => {
     reload();
-    setReady(true);
     const h = () => reload();
     window.addEventListener(EVT, h);
-    window.addEventListener("storage", h);
-    return () => {
-      window.removeEventListener(EVT, h);
-      window.removeEventListener("storage", h);
-    };
+    return () => window.removeEventListener(EVT, h);
   }, [reload]);
   return { topics, ready };
 }
 
-export function getTopicBySlug(slug: string): Topic | undefined {
-  return compose().find((t) => t.slug === slug);
+export async function getTopicBySlug(slug: string): Promise<Topic | undefined> {
+  const { data } = await supabase
+    .from("topics")
+    .select("*")
+    .eq("slug", slug)
+    .maybeSingle();
+  return data ? rowToTopic(data as Row) : undefined;
 }
 
-export function isCustomTopic(slug: string): boolean {
-  return readJSON<Topic[]>(CUSTOM_KEY, []).some((t) => t.slug === slug);
-}
-
-export function addCustomTopic(t: Topic) {
-  writeJSON(CUSTOM_KEY, [...readJSON<Topic[]>(CUSTOM_KEY, []), t]);
-}
-
-export function updateTopic(t: Topic) {
-  // Custom topics live in customTopics. Seed-topic edits go to overrides.
-  if (isCustomTopic(t.slug)) {
-    writeJSON(
-      CUSTOM_KEY,
-      readJSON<Topic[]>(CUSTOM_KEY, []).map((x) => (x.slug === t.slug ? t : x))
-    );
-  } else {
-    writeJSON(OVERRIDES_KEY, {
-      ...readJSON<Record<string, Topic>>(OVERRIDES_KEY, {}),
-      [t.slug]: t,
-    });
+export async function addTopic(t: Topic) {
+  const { error } = await supabase.from("topics").insert(topicToRow(t));
+  if (error) {
+    alert(`Could not save: ${error.message}`);
+    throw error;
   }
+  window.dispatchEvent(new Event(EVT));
 }
 
-export function deleteTopic(slug: string) {
-  if (isCustomTopic(slug)) {
-    writeJSON(
-      CUSTOM_KEY,
-      readJSON<Topic[]>(CUSTOM_KEY, []).filter((t) => t.slug !== slug)
-    );
-  } else {
-    const overrides = readJSON<Record<string, Topic>>(OVERRIDES_KEY, {});
-    delete overrides[slug];
-    writeJSON(OVERRIDES_KEY, overrides);
-    const del = readJSON<string[]>(DELETED_KEY, []);
-    if (!del.includes(slug)) writeJSON(DELETED_KEY, [...del, slug]);
+export async function updateTopic(t: Topic) {
+  const { error } = await supabase
+    .from("topics")
+    .update(topicToRow(t))
+    .eq("slug", t.slug);
+  if (error) {
+    alert(`Could not update: ${error.message}`);
+    throw error;
   }
+  window.dispatchEvent(new Event(EVT));
+}
+
+export async function deleteTopic(slug: string) {
+  const { error } = await supabase.from("topics").delete().eq("slug", slug);
+  if (error) {
+    alert(`Could not delete: ${error.message}`);
+    throw error;
+  }
+  window.dispatchEvent(new Event(EVT));
 }
 
 export function slugify(name: string): string {

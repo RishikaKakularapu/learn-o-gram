@@ -3,17 +3,20 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Search, Shuffle, Bookmark, Plus } from "lucide-react";
-
-const items = [
-  { href: "/", icon: Home, label: "Feed" },
-  { href: "/search", icon: Search, label: "Search" },
-  { href: "/shuffle", icon: Shuffle, label: "Shuffle" },
-  { href: "/saved", icon: Bookmark, label: "Saved" },
-  { href: "/add", icon: Plus, label: "Add" },
-];
+import { useAuth } from "../lib/auth";
 
 export function BottomNav() {
   const pathname = usePathname();
+  const { isOwner } = useAuth();
+
+  const items = [
+    { href: "/", icon: Home, label: "Feed" },
+    { href: "/search", icon: Search, label: "Search" },
+    { href: "/shuffle", icon: Shuffle, label: "Shuffle" },
+    { href: "/saved", icon: Bookmark, label: "Saved" },
+    ...(isOwner ? [{ href: "/add", icon: Plus, label: "Add" }] : []),
+  ];
+
   return (
     <nav className="fixed bottom-0 inset-x-0 z-20 bg-bg/85 backdrop-blur border-t border-border">
       <div className="max-w-md mx-auto flex justify-around items-center px-2 py-2">

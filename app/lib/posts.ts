@@ -1,126 +1,127 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { seedPosts, type LearningPost } from "../data/posts";
-import { STORAGE_KEYS } from "./storage";
+import type { LearningPost } from "../data/posts";
+import { supabase } from "./supabase";
 
 const EVT = "lg:posts-changed";
-const OVERRIDES_KEY = "lg.seedOverrides";
-const DELETED_KEY = "lg.deletedSeeds";
 
-function readCustom(): LearningPost[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.CUSTOM);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-function writeCustom(list: LearningPost[]) {
-  localStorage.setItem(STORAGE_KEYS.CUSTOM, JSON.stringify(list));
-  window.dispatchEvent(new Event(EVT));
-}
+type Row = {
+  id: string;
+  topic: string;
+  title: string;
+  definition: string;
+  example: string | null;
+  remember: string | null;
+  tags: string[] | null;
+  source: string | null;
+  icon: string | null;
+  background_image_url: string | null;
+  foreground_image_url: string | null;
+};
 
-function readOverrides(): Record<string, LearningPost> {
-  try {
-    const raw = localStorage.getItem(OVERRIDES_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-function writeOverrides(map: Record<string, LearningPost>) {
-  localStorage.setItem(OVERRIDES_KEY, JSON.stringify(map));
-  window.dispatchEvent(new Event(EVT));
-}
-
-function readDeleted(): string[] {
-  try {
-    const raw = localStorage.getItem(DELETED_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-function writeDeleted(ids: string[]) {
-  localStorage.setItem(DELETED_KEY, JSON.stringify(ids));
-  window.dispatchEvent(new Event(EVT));
+function rowToPost(r: Row): LearningPost {
+  return {
+    id: r.id,
+    topic: r.topic,
+    title: r.title,
+    definition: r.definition,
+    example: r.example ?? undefined,
+    remember: r.remember ?? undefined,
+    tags: r.tags ?? [],
+    source: r.source ?? undefined,
+    icon: r.icon ?? undefined,
+    backgroundImage: r.background_image_url ?? undefined,
+    foregroundImage: r.foreground_image_url ?? undefined,
+  };
 }
 
-function safeWrite(fn: () => void) {
-  try {
-    fn();
-  } catch (e) {
-    alert("Could not save — storage may be full. Try smaller images.");
-    throw e;
-  }
-}
-
-function compose(): LearningPost[] {
-  const custom = readCustom();
-  const overrides = readOverrides();
-  const deleted = new Set(readDeleted());
-  const visibleSeed = seedPosts
-    .filter((p) => !deleted.has(p.id))
-    .map((p) => overrides[p.id] ?? p);
-  return [...custom, ...visibleSeed];
+function postToRow(p: LearningPost) {
+  return {
+    id: p.id,
+    topic: p.topic,
+    title: p.title,
+    definition: p.definition,
+    example: p.example ?? null,
+    remember: p.remember ?? null,
+    tags: p.tags,
+    source: p.source ?? null,
+    icon: p.icon ?? null,
+    background_image_url: p.backgroundImage ?? null,
+    foreground_image_url: p.foregroundImage ?? null,
+    updated_at: new Date().toISOString(),
+  };
 }
 
 export function useAllPosts(): LearningPost[] {
   const [posts, setPosts] = useState<LearningPost[]>([]);
-  const reload = useCallback(() => setPosts(compose()), []);
+  const reload = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*")
+      .order("updated_at", { ascending: false });
+    if (error) {
+      console.error("posts fetch", error);
+      return;
+    }
+    setPosts((data as Row[] | null ?? []).map(rowToPost));
+  }, []);
   useEffect(() => {
     reload();
     const h = () => reload();
     window.addEventListener(EVT, h);
-    window.addEventListener("storage", h);
-    return () => {
-      window.removeEventListener(EVT, h);
-      window.removeEventListener("storage", h);
-    };
+    return () => window.removeEventListener(EVT, h);
   }, [reload]);
   return posts;
 }
 
-export function getPostById(id: string): LearningPost | undefined {
-  return compose().find((p) => p.id === id);
+export async function getPostById(id: string): Promise<LearningPost | undefined> {
+  const { data, error } = await supabase
+    .from("posts")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) return undefined;
+  return rowToPost(data as Row);
 }
 
-export function addCustomPost(post: LearningPost) {
-  safeWrite(() => writeCustom([post, ...readCustom()]));
-}
-
-export function updatePost(post: LearningPost) {
-  // Custom posts live in customPosts; seed posts are stored as overrides keyed by id.
-  if (post.id.startsWith("c_")) {
-    safeWrite(() =>
-      writeCustom(readCustom().map((p) => (p.id === post.id ? post : p)))
-    );
-  } else {
-    safeWrite(() => writeOverrides({ ...readOverrides(), [post.id]: post }));
+export async function addPost(post: LearningPost) {
+  const { error } = await supabase.from("posts").insert(postToRow(post));
+  if (error) {
+    alert(`Could not save: ${error.message}`);
+    throw error;
   }
+  window.dispatchEvent(new Event(EVT));
 }
 
-export function deletePost(id: string) {
-  if (id.startsWith("c_")) {
-    writeCustom(readCustom().filter((p) => p.id !== id));
-  } else {
-    // Hide the seed and drop any override.
-    const overrides = readOverrides();
-    delete overrides[id];
-    writeOverrides(overrides);
-    const del = readDeleted();
-    if (!del.includes(id)) writeDeleted([...del, id]);
+export async function updatePost(post: LearningPost) {
+  const { error } = await supabase
+    .from("posts")
+    .update(postToRow(post))
+    .eq("id", post.id);
+  if (error) {
+    alert(`Could not update: ${error.message}`);
+    throw error;
   }
-  // Drop from saved list if present.
+  window.dispatchEvent(new Event(EVT));
+}
+
+export async function deletePost(id: string) {
+  const { error } = await supabase.from("posts").delete().eq("id", id);
+  if (error) {
+    alert(`Could not delete: ${error.message}`);
+    throw error;
+  }
+  // Drop from local saves too
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.SAVED);
+    const raw = localStorage.getItem("lg.saved");
     if (raw) {
       const ids: string[] = JSON.parse(raw);
       localStorage.setItem(
-        STORAGE_KEYS.SAVED,
+        "lg.saved",
         JSON.stringify(ids.filter((x) => x !== id))
       );
     }
   } catch {}
+  window.dispatchEvent(new Event(EVT));
 }
