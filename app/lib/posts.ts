@@ -59,6 +59,7 @@ export function useAllPosts(): LearningPost[] {
     const { data, error } = await supabase
       .from("posts")
       .select("*")
+      .order("position", { ascending: true })
       .order("updated_at", { ascending: false });
     if (error) {
       console.error("posts fetch", error);
@@ -102,6 +103,27 @@ export async function updatePost(post: LearningPost) {
   if (error) {
     alert(`Could not update: ${error.message}`);
     throw error;
+  }
+  window.dispatchEvent(new Event(EVT));
+}
+
+/**
+ * Reorder posts within a topic by writing the index of each id as `position`.
+ * orderedIds[0] gets position 1, orderedIds[1] gets position 2, ... etc.
+ */
+export async function reorderPosts(orderedIds: string[]) {
+  if (orderedIds.length === 0) return;
+  const updates = orderedIds.map((id, i) =>
+    supabase
+      .from("posts")
+      .update({ position: i + 1 })
+      .eq("id", id)
+  );
+  const results = await Promise.all(updates);
+  const firstError = results.find((r) => r.error)?.error;
+  if (firstError) {
+    alert(`Could not save order: ${firstError.message}`);
+    throw firstError;
   }
   window.dispatchEvent(new Event(EVT));
 }

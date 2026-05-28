@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronLeft, Pencil } from "lucide-react";
+import { ChevronLeft, Pencil, ArrowUpDown } from "lucide-react";
 import { PostCard } from "../../components/PostCard";
 import { BottomNav } from "../../components/BottomNav";
 import { useAllPosts } from "../../lib/posts";

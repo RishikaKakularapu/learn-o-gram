@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, Plus, Trash2 } from "lucide-react";
 import { BottomNav } from "../components/BottomNav";
 import { ImagePicker } from "../components/ImagePicker";
+import { Markdown } from "../components/Markdown";
 import { useAllTopics } from "../lib/topics";
 import { addPost, deletePost, getPostById, updatePost } from "../lib/posts";
 import { useAuth } from "../lib/auth";
@@ -31,6 +32,7 @@ function AddForm() {
   const [backgroundImage, setBackgroundImage] = useState<string | undefined>();
   const [foregroundImage, setForegroundImage] = useState<string | undefined>();
   const [loaded, setLoaded] = useState(!isEdit);
+  const [showPreview, setShowPreview] = useState(true);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -175,19 +177,51 @@ function AddForm() {
           placeholder="Write as much as you need — the card will scroll."
           className={field}
         />
-        <div className="text-[11px] text-muted mt-1 leading-relaxed">
-          Markdown supported: <code className="text-accent">**bold**</code>{" "}
-          <code className="text-accent">*italic*</code>{" "}
-          <code className="text-accent">`code`</code>{" "}
-          <code className="text-accent">- bullet</code>{" "}
-          <code className="text-accent"># heading</code>{" "}
-          <code className="text-accent">&gt; quote</code>
-          . For colors:{" "}
-          <code className="text-accent">
-            &lt;span style="color:#ec4899"&gt;text&lt;/span&gt;
-          </code>
-          .
+        <div className="flex items-center justify-between mt-1">
+          <button
+            type="button"
+            onClick={() => setShowPreview((v) => !v)}
+            className="text-[11px] text-accent underline-offset-2 hover:underline"
+          >
+            {showPreview ? "Hide preview" : "Show preview"}
+          </button>
+          <div className="text-[11px] text-muted">Markdown supported</div>
         </div>
+
+        {showPreview && definition.trim() && (
+          <div className="mt-2 rounded-lg border border-border bg-surface2/60 p-3">
+            <div className="text-[10px] uppercase tracking-wider text-muted mb-2">
+              Preview
+            </div>
+            <div className="text-[15px] leading-relaxed space-y-2">
+              <Markdown>{definition}</Markdown>
+            </div>
+          </div>
+        )}
+
+        <details className="mt-2 text-[11px] text-muted">
+          <summary className="cursor-pointer hover:text-text">
+            Markdown cheatsheet
+          </summary>
+          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 leading-relaxed">
+            <code className="text-accent">- item</code><span>bullet list</span>
+            <code className="text-accent">1. item</code><span>numbered list</span>
+            <code className="text-accent">- [ ] todo</code><span>checkbox</span>
+            <code className="text-accent">**bold**</code><span><b>bold</b></span>
+            <code className="text-accent">*italic*</code><span><i>italic</i></span>
+            <code className="text-accent">`code`</code><span>inline code</span>
+            <code className="text-accent"># Title</code><span>big heading</span>
+            <code className="text-accent">## Section</code><span>medium heading</span>
+            <code className="text-accent">&gt; note</code><span>callout quote</span>
+            <code className="text-accent">[text](url)</code><span>link</span>
+            <code className="text-accent">---</code><span>horizontal rule</span>
+            <code className="text-accent">&lt;span style=&quot;color:#ec4899&quot;&gt;x&lt;/span&gt;</code>
+            <span>inline color</span>
+          </div>
+          <div className="mt-2 text-[11px]">
+            <b>Tip:</b> each bullet must start at the <i>beginning</i> of its line, with a dash + space.
+          </div>
+        </details>
       </div>
 
       <div>
