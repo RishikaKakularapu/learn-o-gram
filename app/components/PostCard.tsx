@@ -46,6 +46,15 @@ export function PostCard({ post }: { post: LearningPost }) {
     setSaved(next.includes(post.id));
   }
 
+  const hasTitle = !!post.title?.trim();
+  const hasDef = !!post.definition?.trim();
+  const hasExample = !!post.example?.trim();
+  const hasRemember = !!post.remember?.trim();
+  const hasTags = post.tags.length > 0;
+  const hasSource = !!post.source;
+  const hasBody = hasDef || hasExample || hasTags || hasSource;
+  const imageFocused = !!post.foregroundImage && !hasDef && !hasExample;
+
   return (
     <article className="min-h-screen w-full flex items-center justify-center px-4 py-6">
       <div className="relative w-full max-w-md h-[68vh] flex flex-col rounded-2xl bg-surface border border-border overflow-hidden shadow-xl">
@@ -64,12 +73,18 @@ export function PostCard({ post }: { post: LearningPost }) {
           <div className="w-9 h-9 rounded-full gradient-accent flex items-center justify-center text-lg">
             {post.icon ?? "📘"}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold truncate">{post.title}</div>
-            <div className="text-xs text-muted truncate">
-              {post.tags.slice(0, 2).map((t) => `#${t}`).join(" ")}
+          {hasTitle ? (
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold truncate">
+                {post.title}
+              </div>
+              <div className="text-xs text-muted truncate">
+                {post.tags.slice(0, 2).map((t) => `#${t}`).join(" ")}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex-1" />
+          )}
           {isOwner && (
             <Link
               href={`/add?id=${post.id}`}
@@ -81,35 +96,72 @@ export function PostCard({ post }: { post: LearningPost }) {
           )}
         </div>
 
-        {/* Foreground image (pinned, optional) */}
-        {post.foregroundImage && (
-          <div className="relative shrink-0">
-            <img
-              src={post.foregroundImage}
-              alt=""
-              className="w-full h-40 object-cover"
-            />
+        {/* Foreground image — fills body when there's no text */}
+        {post.foregroundImage &&
+          (imageFocused ? (
+            <div className="relative flex-1 min-h-0 bg-black/30">
+              <img
+                src={post.foregroundImage}
+                alt=""
+                className="w-full h-full object-contain"
+              />
+            </div>
+          ) : (
+            <div className="relative shrink-0">
+              <img
+                src={post.foregroundImage}
+                alt=""
+                className="w-full h-40 object-cover"
+              />
+            </div>
+          ))}
+
+        {/* Body — only when there's text/tags/source */}
+        {hasBody && (
+          <div className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 space-y-4">
+            {hasDef && (
+              <div className="text-[15px] leading-relaxed space-y-2">
+                <Markdown>{post.definition}</Markdown>
+              </div>
+            )}
+
+            {hasExample && (
+              <div className="rounded-xl bg-surface2 border border-border p-3">
+                <div className="text-[11px] uppercase tracking-wider text-muted mb-1">
+                  Example
+                </div>
+                <div className="text-sm leading-relaxed space-y-2">
+                  <Markdown>{post.example ?? ""}</Markdown>
+                </div>
+              </div>
+            )}
+
+            {hasTags && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {post.tags.map((t) => (
+                  <Link
+                    key={t}
+                    href={`/search?tag=${encodeURIComponent(t)}`}
+                    className="text-xs px-2 py-1 rounded-full bg-surface2 border border-border text-muted hover:text-text"
+                  >
+                    #{t}
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {hasSource && (
+              <div className="inline-flex items-center gap-1 text-xs text-muted">
+                <ExternalLink size={12} />
+                {post.source}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Scrollable body */}
-        <div className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 space-y-4">
-          <div className="text-[15px] leading-relaxed space-y-2">
-            <Markdown>{post.definition}</Markdown>
-          </div>
-
-          {post.example && (
-            <div className="rounded-xl bg-surface2 border border-border p-3">
-              <div className="text-[11px] uppercase tracking-wider text-muted mb-1">
-                Example
-              </div>
-              <div className="text-sm leading-relaxed space-y-2">
-                <Markdown>{post.example}</Markdown>
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-2 pt-1">
+        {/* Image-only cards still show tags in a thin strip */}
+        {imageFocused && hasTags && (
+          <div className="relative shrink-0 px-4 pt-2 flex flex-wrap gap-2">
             {post.tags.map((t) => (
               <Link
                 key={t}
@@ -120,17 +172,10 @@ export function PostCard({ post }: { post: LearningPost }) {
               </Link>
             ))}
           </div>
-
-          {post.source && (
-            <div className="inline-flex items-center gap-1 text-xs text-muted">
-              <ExternalLink size={12} />
-              {post.source}
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Remember (pinned to bottom, optional) */}
-        {post.remember && (
+        {hasRemember && (
           <div className="relative px-4 pt-2 pb-3 shrink-0">
             <div className="rounded-xl p-[1px] gradient-accent">
               <div className="rounded-xl bg-surface px-3 py-2">
@@ -138,7 +183,7 @@ export function PostCard({ post }: { post: LearningPost }) {
                   Remember
                 </div>
                 <div className="text-sm leading-relaxed">
-                  <Markdown>{post.remember}</Markdown>
+                  <Markdown>{post.remember ?? ""}</Markdown>
                 </div>
               </div>
             </div>

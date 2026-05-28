@@ -64,7 +64,12 @@ function AddForm() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !definition.trim() || !topic) return;
+    const hasContent =
+      title.trim() ||
+      definition.trim() ||
+      foregroundImage ||
+      backgroundImage;
+    if (!hasContent || !topic) return;
     setBusy(true);
     const post: LearningPost = {
       id: editId ?? `c_${Date.now()}`,
@@ -158,23 +163,23 @@ function AddForm() {
           />
         </div>
         <div>
-          <label className="text-xs text-muted block mb-1">Title*</label>
+          <label className="text-xs text-muted block mb-1">Title</label>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Few-shot prompting"
+            placeholder="Optional — e.g. Few-shot prompting"
             className={field}
           />
         </div>
       </div>
 
       <div>
-        <label className="text-xs text-muted block mb-1">Definition*</label>
+        <label className="text-xs text-muted block mb-1">Definition</label>
         <textarea
           value={definition}
           onChange={(e) => setDefinition(e.target.value)}
           rows={8}
-          placeholder="Write as much as you need — the card will scroll."
+          placeholder="Optional. Leave blank for an image-only card."
           className={field}
         />
         <div className="flex items-center justify-between mt-1">
@@ -261,7 +266,14 @@ function AddForm() {
 
       <button
         type="submit"
-        disabled={busy || !title.trim() || !definition.trim() || !topic}
+        disabled={
+          busy ||
+          !topic ||
+          (!title.trim() &&
+            !definition.trim() &&
+            !foregroundImage &&
+            !backgroundImage)
+        }
         className="w-full py-3 rounded-xl gradient-accent font-semibold disabled:opacity-40"
       >
         {busy ? "Saving…" : isEdit ? "Update card" : "Save card"}

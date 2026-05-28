@@ -9,8 +9,8 @@ const EVT = "lg:posts-changed";
 type Row = {
   id: string;
   topic: string;
-  title: string;
-  definition: string;
+  title: string | null;
+  definition: string | null;
   example: string | null;
   remember: string | null;
   tags: string[] | null;
@@ -24,8 +24,8 @@ function rowToPost(r: Row): LearningPost {
   return {
     id: r.id,
     topic: r.topic,
-    title: r.title,
-    definition: r.definition,
+    title: r.title ?? "",
+    definition: r.definition ?? "",
     example: r.example ?? undefined,
     remember: r.remember ?? undefined,
     tags: r.tags ?? [],
