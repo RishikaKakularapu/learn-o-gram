@@ -56,6 +56,13 @@ export default function FeedClient({ slug }: { slug: string }) {
           {isOwner && (
             <>
               <Link
+                href={`/feed/${topic.slug}/reorder`}
+                aria-label="Reorder cards"
+                className="p-1.5 rounded-full text-muted hover:text-text"
+              >
+                <ArrowUpDown size={16} />
+              </Link>
+              <Link
                 href={`/add-topic?slug=${topic.slug}`}
                 aria-label="Edit topic"
                 className="p-1.5 rounded-full text-muted hover:text-text"
